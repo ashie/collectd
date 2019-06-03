@@ -1390,6 +1390,24 @@ network_la_CPPFLAGS += $(GCRYPT_CPPFLAGS)
 network_la_LDFLAGS += $(GCRYPT_LDFLAGS)
 network_la_LIBADD += $(GCRYPT_LIBS)
 endif
+
+pkglib_LTLIBRARIES += network_alt.la
+network_alt_la_SOURCES = \
+	src/network_alt.c \
+	src/network.h \
+	src/utils_fbhash.c \
+	src/utils_fbhash.h
+network_alt_la_CPPFLAGS = $(AM_CPPFLAGS)
+network_alt_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+network_alt_la_LIBADD =
+if BUILD_WITH_LIBSOCKET
+network_alt_la_LIBADD += -lsocket
+endif
+if BUILD_WITH_LIBGCRYPT
+network_alt_la_CPPFLAGS += $(GCRYPT_CPPFLAGS)
+network_alt_la_LDFLAGS += $(GCRYPT_LDFLAGS)
+network_alt_la_LIBADD += $(GCRYPT_LIBS)
+endif
 endif
 
 if BUILD_PLUGIN_NFS
