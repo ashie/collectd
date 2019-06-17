@@ -771,6 +771,137 @@ static char *values_to_sqlarray(const data_set_t *ds, const value_list_t *vl,
   return string;
 } /* values_to_sqlarray */
 
+static char *add_string_to_json(char *src, char **json, size_t *json_len)
+{
+  size_t len;
+
+  if (!src)
+    return NULL;
+
+  len = strlen(src);
+  if (*json_len < len + 1)
+    return NULL;
+
+  sstrncpy(*json, src, len + 1);
+  *json += len;
+  *json_len -= len;
+  return *json;
+}
+
+static char *add_escaped_string_to_json(char *src, char **json, size_t *json_len)
+{
+  size_t src_len = strlen(src);
+  char *dest_ptr = *json;
+  size_t dest_len = *json_len;
+  size_t i, start = 0;
+
+  if (json_len < 0)
+    return NULL;
+
+  for (i = 0; i <= src_len; i++) {
+    int segment_len;
+
+    if (i < src_len && src[i] != '"' && src[i] != '\\')
+      continue;
+
+    if (i == src_len)
+      segment_len = src_len - start;
+    else
+      segment_len = i - start;
+
+    if (segment_len > 0) {
+      if (dest_len < segment_len + 1)
+	return NULL;
+      sstrncpy(dest_ptr, &src[start], segment_len + 1);
+      dest_ptr += segment_len;
+      dest_len -= segment_len;
+    }
+
+    if (src[i] == '"') {
+      if (!add_string_to_json("\\\"", &dest_ptr, &dest_len))
+	return NULL;
+    } else if (src[i] == '\\') {
+      if (!add_string_to_json("\\\\", &dest_ptr, &dest_len))
+	return NULL;
+    }
+
+    start = i + 1;
+  }
+
+  *json = dest_ptr;
+  *json_len = dest_len;
+
+  return *json;
+}
+
+static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
+			      char *string, size_t string_len) {
+  char *str_ptr;
+  size_t str_len;
+  char **toc = NULL;
+  int num, i;
+
+  if (!string || string_len <= 0)
+    return NULL;
+
+  str_ptr = string;
+  str_len = string_len;
+
+  *str_ptr = '\0';
+
+  num = meta_data_toc(vl->meta, &toc);
+  for (i = 0; i < num; i++) {
+    char *key = toc[i], *value = NULL;
+
+    if (!add_string_to_json(",\"", &str_ptr, &str_len))
+      goto ERROR;
+
+    if (!add_escaped_string_to_json(key, &str_ptr, &str_len))
+      goto ERROR;
+
+    if (!add_string_to_json("\":", &str_ptr, &str_len))
+      goto ERROR;
+
+    if (meta_data_as_string(vl->meta, key, &value) == 0) {
+      int type = meta_data_type(vl->meta, key);
+
+      if (type == MD_TYPE_STRING)
+	if (!add_string_to_json("\"", &str_ptr, &str_len))
+	  goto ERROR;
+
+      if (!add_escaped_string_to_json(value, &str_ptr, &str_len)) {
+	sfree(value);
+	goto ERROR;
+      }
+      sfree(value);
+
+      if (type == MD_TYPE_STRING)
+	if (!add_string_to_json("\"", &str_ptr, &str_len))
+	  goto ERROR;
+    } else {
+      goto ERROR;
+    }
+  }
+  if (num > 0) {
+    if (!add_string_to_json("}", &str_ptr, &str_len))
+      goto ERROR;
+    string[0] = '{';
+  }
+
+  for (i = 0; i < num; i++)
+    sfree(toc[i]);
+  sfree(toc);
+
+  return string;
+
+ ERROR:
+  for (i = 0; i < num; i++)
+    sfree(toc[i]);
+  sfree(toc);
+
+  return NULL;
+}
+
 static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
                         user_data_t *ud) {
   c_psql_database_t *db;
@@ -779,8 +910,9 @@ static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
   char values_name_str[1024];
   char values_type_str[1024];
   char values_str[1024];
+  char metadata_str[1024];
 
-  const char *params[9];
+  const char *params[10];
 
   int success = 0;
 
@@ -850,8 +982,14 @@ static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
       return -1;
     }
 
+    if (!metadata_to_json(ds, vl, metadata_str, sizeof(metadata_str))) {
+      pthread_mutex_unlock(&db->db_lock);
+      return -1;
+    }
+
     params[7] = values_type_str;
     params[8] = values_str;
+    params[9] = metadata_str;
 
     res = PQexecParams(db->conn, writer->statement, STATIC_ARRAY_SIZE(params),
                        NULL, (const char *const *)params, NULL, NULL,
