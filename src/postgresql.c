@@ -877,7 +877,7 @@ static char *metadata_to_json(char **metadata_keys, const value_list_t *vl,
   size_t str_len;
   char **keys = NULL;
   char **toc = NULL;
-  int num = 0, i;
+  int num = 0, result_num = 0, i;
 
   if (!json || json_len <= 0)
     return NULL;
@@ -885,22 +885,28 @@ static char *metadata_to_json(char **metadata_keys, const value_list_t *vl,
   str_ptr = json;
   str_len = json_len;
 
-  *str_ptr = '\0';
-
   if (metadata_keys && metadata_keys[0] == NULL) {
     num = meta_data_toc(vl->meta, &toc);
     keys = toc;
   } else {
     keys = metadata_keys;
+    for (i = 0; keys && keys[i]; i++);
+    num = i;
   }
 
   for (i = 0; i < num; i++) {
-    add_metadata_to_json(vl->meta, keys[i], &str_ptr, &str_len);
+    if (meta_data_exists(vl->meta, keys[i]) > 0) {
+      if (!add_metadata_to_json(vl->meta, keys[i], &str_ptr, &str_len))
+	goto ERROR;
+      result_num++;
+    }
   }
-  if (num > 0) {
+  if (result_num > 0) {
     if (!add_string_to_json("}", &str_ptr, &str_len))
       goto ERROR;
     json[0] = '{';
+  } else {
+    json[0] = '\0';
   }
 
   for (i = 0; toc && i < num; i++)
@@ -999,8 +1005,8 @@ static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
 
     if (writer->metadata_keys) {
       if (!metadata_to_json(writer->metadata_keys, vl, metadata_str, sizeof(metadata_str))) {
-	pthread_mutex_unlock(&db->db_lock);
-	return -1;
+        pthread_mutex_unlock(&db->db_lock);
+        return -1;
       }
     }
 
