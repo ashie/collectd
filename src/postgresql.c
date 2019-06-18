@@ -103,6 +103,7 @@ typedef struct {
   char *name;
   char *statement;
   bool store_rates;
+  char **metadata_keys;
 } c_psql_writer_t;
 
 typedef struct {
@@ -870,12 +871,13 @@ static char *add_metadata_to_json(meta_data_t *meta, const char *key,
   return *json;
 }
 
-static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
+static char *metadata_to_json(char **metadata_keys, const value_list_t *vl,
                               char *json, size_t json_len) {
   char *str_ptr;
   size_t str_len;
+  char **keys = NULL;
   char **toc = NULL;
-  int num, i;
+  int num = 0, i;
 
   if (!json || json_len <= 0)
     return NULL;
@@ -885,9 +887,15 @@ static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
 
   *str_ptr = '\0';
 
-  num = meta_data_toc(vl->meta, &toc);
+  if (metadata_keys && metadata_keys[0] == NULL) {
+    num = meta_data_toc(vl->meta, &toc);
+    keys = toc;
+  } else {
+    keys = metadata_keys;
+  }
+
   for (i = 0; i < num; i++) {
-    add_metadata_to_json(vl->meta, toc[i], &str_ptr, &str_len);
+    add_metadata_to_json(vl->meta, keys[i], &str_ptr, &str_len);
   }
   if (num > 0) {
     if (!add_string_to_json("}", &str_ptr, &str_len))
@@ -895,14 +903,14 @@ static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
     json[0] = '{';
   }
 
-  for (i = 0; i < num; i++)
+  for (i = 0; toc && i < num; i++)
     sfree(toc[i]);
   sfree(toc);
 
   return json;
 
 ERROR:
-  for (i = 0; i < num; i++)
+  for (i = 0; toc && i < num; i++)
     sfree(toc[i]);
   sfree(toc);
 
@@ -917,7 +925,7 @@ static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
   char values_name_str[1024];
   char values_type_str[1024];
   char values_str[1024];
-  char metadata_str[1024];
+  char metadata_str[1024] = { 0 };
 
   const char *params[10];
 
@@ -989,9 +997,11 @@ static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
       return -1;
     }
 
-    if (!metadata_to_json(ds, vl, metadata_str, sizeof(metadata_str))) {
-      pthread_mutex_unlock(&db->db_lock);
-      return -1;
+    if (writer->metadata_keys) {
+      if (!metadata_to_json(writer->metadata_keys, vl, metadata_str, sizeof(metadata_str))) {
+	pthread_mutex_unlock(&db->db_lock);
+	return -1;
+      }
     }
 
     params[7] = values_type_str;
@@ -1214,6 +1224,32 @@ static int config_add_writer(oconfig_item_t *ci, c_psql_writer_t *src_writers,
   return 0;
 } /* config_add_writer */
 
+static int config_add_meta(c_psql_writer_t *writer, oconfig_item_t *ci) {
+  int i, curr_len, new_len;
+
+  for (i = 0; writer->metadata_keys && writer->metadata_keys[i]; i++);
+
+  curr_len = i;
+  new_len = curr_len + ci->values_num;
+
+  for (i = 0; i < ci->values_num; i++) {
+    if (ci->values[i].type != OCONFIG_TYPE_STRING) {
+      log_warn("Only string arguments are allowed to the `MetaData' option.");
+      return -1;
+    }
+  }
+
+  writer->metadata_keys =
+    realloc(writer->metadata_keys, sizeof(char *) * (new_len + 1));
+  writer->metadata_keys[new_len] = NULL;
+
+  for (i = 0; i < ci->values_num; i++) {
+    writer->metadata_keys[i + curr_len] = sstrdup(ci->values[i].value.string);
+  }
+
+  return 0;
+}
+
 static int c_psql_config_writer(oconfig_item_t *ci) {
   c_psql_writer_t *writer;
   c_psql_writer_t *tmp;
@@ -1238,6 +1274,7 @@ static int c_psql_config_writer(oconfig_item_t *ci) {
   writer->name = sstrdup(ci->values[0].value.string);
   writer->statement = NULL;
   writer->store_rates = true;
+  writer->metadata_keys = NULL;
 
   for (int i = 0; i < ci->children_num; ++i) {
     oconfig_item_t *c = ci->children + i;
@@ -1246,13 +1283,19 @@ static int c_psql_config_writer(oconfig_item_t *ci) {
       status = cf_util_get_string(c, &writer->statement);
     else if (strcasecmp("StoreRates", c->key) == 0)
       status = cf_util_get_boolean(c, &writer->store_rates);
+    else if (strcasecmp("MetaData", c->key) == 0)
+      status = config_add_meta(writer, c);
     else
       log_warn("Ignoring unknown config key \"%s\".", c->key);
   }
 
   if (status != 0) {
+    int i;
     sfree(writer->statement);
     sfree(writer->name);
+    for (i = 0; writer->metadata_keys && writer->metadata_keys[i]; i++)
+      sfree(writer->metadata_keys[i]);
+    sfree(writer->metadata_keys);
     return status;
   }
 
