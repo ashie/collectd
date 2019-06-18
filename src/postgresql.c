@@ -771,7 +771,7 @@ static char *values_to_sqlarray(const data_set_t *ds, const value_list_t *vl,
   return string;
 } /* values_to_sqlarray */
 
-static char *add_string_to_json(char *src, char **json, size_t *json_len)
+static char *add_string_to_json(const char *src, char **json, size_t *json_len)
 {
   size_t len;
 
@@ -788,7 +788,7 @@ static char *add_string_to_json(char *src, char **json, size_t *json_len)
   return *json;
 }
 
-static char *add_escaped_string_to_json(char *src, char **json, size_t *json_len)
+static char *add_escaped_string_to_json(const char *src, char **json, size_t *json_len)
 {
   size_t src_len = strlen(src);
   char *dest_ptr = *json;
