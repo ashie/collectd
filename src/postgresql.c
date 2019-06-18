@@ -834,6 +834,42 @@ static char *add_escaped_string_to_json(const char *src, char **json,
   return *json;
 }
 
+static char *add_metadata_to_json(meta_data_t *meta, const char *key,
+                                  char **json, size_t *json_len) {
+  char *value = NULL;
+
+  if (!add_string_to_json(",\"", json, json_len))
+    return NULL;
+
+  if (!add_escaped_string_to_json(key, json, json_len))
+    return NULL;
+
+  if (!add_string_to_json("\":", json, json_len))
+    return NULL;
+
+  if (meta_data_as_string(meta, key, &value) == 0) {
+    int type = meta_data_type(meta, key);
+
+    if (type == MD_TYPE_STRING) {
+      if (!add_string_to_json("\"", json, json_len))
+	return NULL;
+    }
+
+    if (!add_escaped_string_to_json(value, json, json_len)) {
+      sfree(value);
+      return NULL;
+    }
+    sfree(value);
+
+    if (type == MD_TYPE_STRING) {
+      if (!add_string_to_json("\"", json, json_len))
+	return NULL;
+    }
+  }
+
+  return *json;
+}
+
 static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
                               char *json, size_t json_len) {
   char *str_ptr;
@@ -851,36 +887,7 @@ static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
 
   num = meta_data_toc(vl->meta, &toc);
   for (i = 0; i < num; i++) {
-    char *key = toc[i], *value = NULL;
-
-    if (!add_string_to_json(",\"", &str_ptr, &str_len))
-      goto ERROR;
-
-    if (!add_escaped_string_to_json(key, &str_ptr, &str_len))
-      goto ERROR;
-
-    if (!add_string_to_json("\":", &str_ptr, &str_len))
-      goto ERROR;
-
-    if (meta_data_as_string(vl->meta, key, &value) == 0) {
-      int type = meta_data_type(vl->meta, key);
-
-      if (type == MD_TYPE_STRING)
-        if (!add_string_to_json("\"", &str_ptr, &str_len))
-          goto ERROR;
-
-      if (!add_escaped_string_to_json(value, &str_ptr, &str_len)) {
-        sfree(value);
-        goto ERROR;
-      }
-      sfree(value);
-
-      if (type == MD_TYPE_STRING)
-        if (!add_string_to_json("\"", &str_ptr, &str_len))
-          goto ERROR;
-    } else {
-      goto ERROR;
-    }
+    add_metadata_to_json(vl->meta, toc[i], &str_ptr, &str_len);
   }
   if (num > 0) {
     if (!add_string_to_json("}", &str_ptr, &str_len))
