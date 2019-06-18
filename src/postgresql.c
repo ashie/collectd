@@ -771,8 +771,8 @@ static char *values_to_sqlarray(const data_set_t *ds, const value_list_t *vl,
   return string;
 } /* values_to_sqlarray */
 
-static char *add_string_to_json(const char *src, char **json, size_t *json_len)
-{
+static char *add_string_to_json(const char *src, char **json,
+                                size_t *json_len) {
   size_t len;
 
   if (!src)
@@ -788,8 +788,8 @@ static char *add_string_to_json(const char *src, char **json, size_t *json_len)
   return *json;
 }
 
-static char *add_escaped_string_to_json(const char *src, char **json, size_t *json_len)
-{
+static char *add_escaped_string_to_json(const char *src, char **json,
+                                        size_t *json_len) {
   size_t src_len = strlen(src);
   char *dest_ptr = *json;
   size_t dest_len = *json_len;
@@ -811,7 +811,7 @@ static char *add_escaped_string_to_json(const char *src, char **json, size_t *js
 
     if (segment_len > 0) {
       if (dest_len < segment_len + 1)
-	return NULL;
+        return NULL;
       sstrncpy(dest_ptr, &src[start], segment_len + 1);
       dest_ptr += segment_len;
       dest_len -= segment_len;
@@ -819,10 +819,10 @@ static char *add_escaped_string_to_json(const char *src, char **json, size_t *js
 
     if (src[i] == '"') {
       if (!add_string_to_json("\\\"", &dest_ptr, &dest_len))
-	return NULL;
+        return NULL;
     } else if (src[i] == '\\') {
       if (!add_string_to_json("\\\\", &dest_ptr, &dest_len))
-	return NULL;
+        return NULL;
     }
 
     start = i + 1;
@@ -835,7 +835,7 @@ static char *add_escaped_string_to_json(const char *src, char **json, size_t *js
 }
 
 static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
-			      char *json, size_t json_len) {
+                              char *json, size_t json_len) {
   char *str_ptr;
   size_t str_len;
   char **toc = NULL;
@@ -866,18 +866,18 @@ static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
       int type = meta_data_type(vl->meta, key);
 
       if (type == MD_TYPE_STRING)
-	if (!add_string_to_json("\"", &str_ptr, &str_len))
-	  goto ERROR;
+        if (!add_string_to_json("\"", &str_ptr, &str_len))
+          goto ERROR;
 
       if (!add_escaped_string_to_json(value, &str_ptr, &str_len)) {
-	sfree(value);
-	goto ERROR;
+        sfree(value);
+        goto ERROR;
       }
       sfree(value);
 
       if (type == MD_TYPE_STRING)
-	if (!add_string_to_json("\"", &str_ptr, &str_len))
-	  goto ERROR;
+        if (!add_string_to_json("\"", &str_ptr, &str_len))
+          goto ERROR;
     } else {
       goto ERROR;
     }
@@ -894,7 +894,7 @@ static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
 
   return json;
 
- ERROR:
+ERROR:
   for (i = 0; i < num; i++)
     sfree(toc[i]);
   sfree(toc);
