@@ -835,17 +835,17 @@ static char *add_escaped_string_to_json(char *src, char **json, size_t *json_len
 }
 
 static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
-			      char *string, size_t string_len) {
+			      char *json, size_t json_len) {
   char *str_ptr;
   size_t str_len;
   char **toc = NULL;
   int num, i;
 
-  if (!string || string_len <= 0)
+  if (!json || json_len <= 0)
     return NULL;
 
-  str_ptr = string;
-  str_len = string_len;
+  str_ptr = json;
+  str_len = json_len;
 
   *str_ptr = '\0';
 
@@ -885,14 +885,14 @@ static char *metadata_to_json(const data_set_t *ds, const value_list_t *vl,
   if (num > 0) {
     if (!add_string_to_json("}", &str_ptr, &str_len))
       goto ERROR;
-    string[0] = '{';
+    json[0] = '{';
   }
 
   for (i = 0; i < num; i++)
     sfree(toc[i]);
   sfree(toc);
 
-  return string;
+  return json;
 
  ERROR:
   for (i = 0; i < num; i++)
