@@ -853,7 +853,7 @@ static char *add_metadata_to_json(meta_data_t *meta, const char *key,
 
     if (type == MD_TYPE_STRING) {
       if (!add_string_to_json("\"", json, json_len))
-	return NULL;
+        return NULL;
     }
 
     if (!add_escaped_string_to_json(value, json, json_len)) {
@@ -864,7 +864,7 @@ static char *add_metadata_to_json(meta_data_t *meta, const char *key,
 
     if (type == MD_TYPE_STRING) {
       if (!add_string_to_json("\"", json, json_len))
-	return NULL;
+        return NULL;
     }
   }
 
@@ -890,14 +890,15 @@ static char *metadata_to_json(char **metadata_keys, const value_list_t *vl,
     keys = toc;
   } else {
     keys = metadata_keys;
-    for (i = 0; keys && keys[i]; i++);
+    for (i = 0; keys && keys[i]; i++)
+      ;
     num = i;
   }
 
   for (i = 0; i < num; i++) {
     if (meta_data_exists(vl->meta, keys[i]) > 0) {
       if (!add_metadata_to_json(vl->meta, keys[i], &str_ptr, &str_len))
-	goto ERROR;
+        goto ERROR;
       result_num++;
     }
   }
@@ -931,7 +932,7 @@ static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
   char values_name_str[1024];
   char values_type_str[1024];
   char values_str[1024];
-  char metadata_str[1024] = { 0 };
+  char metadata_str[1024] = {0};
 
   const char *params[10];
 
@@ -1004,7 +1005,8 @@ static int c_psql_write(const data_set_t *ds, const value_list_t *vl,
     }
 
     if (writer->metadata_keys) {
-      if (!metadata_to_json(writer->metadata_keys, vl, metadata_str, sizeof(metadata_str))) {
+      if (!metadata_to_json(writer->metadata_keys, vl, metadata_str,
+                            sizeof(metadata_str))) {
         pthread_mutex_unlock(&db->db_lock);
         return -1;
       }
@@ -1233,7 +1235,8 @@ static int config_add_writer(oconfig_item_t *ci, c_psql_writer_t *src_writers,
 static int config_add_meta(c_psql_writer_t *writer, oconfig_item_t *ci) {
   int i, curr_len, new_len;
 
-  for (i = 0; writer->metadata_keys && writer->metadata_keys[i]; i++);
+  for (i = 0; writer->metadata_keys && writer->metadata_keys[i]; i++)
+    ;
 
   curr_len = i;
   new_len = curr_len + ci->values_num;
@@ -1246,7 +1249,7 @@ static int config_add_meta(c_psql_writer_t *writer, oconfig_item_t *ci) {
   }
 
   writer->metadata_keys =
-    realloc(writer->metadata_keys, sizeof(char *) * (new_len + 1));
+      realloc(writer->metadata_keys, sizeof(char *) * (new_len + 1));
   writer->metadata_keys[new_len] = NULL;
 
   for (i = 0; i < ci->values_num; i++) {
