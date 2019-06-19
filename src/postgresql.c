@@ -1235,6 +1235,26 @@ static int config_add_writer(oconfig_item_t *ci, c_psql_writer_t *src_writers,
 static int config_add_meta(c_psql_writer_t *writer, oconfig_item_t *ci) {
   int i, curr_len, new_len;
 
+  /*
+   * MetaData true:  Write all meta data in a metric
+   * MetaData false: Don't write meta data
+   */
+  if (ci->values_num == 1 && ci->values[0].type == OCONFIG_TYPE_BOOLEAN) {
+    for (i = 0; writer->metadata_keys && writer->metadata_keys[i]; i++)
+      sfree(writer->metadata_keys[i]);
+    sfree(writer->metadata_keys);
+
+    if (ci->values[0].value.boolean) {
+      writer->metadata_keys = calloc(1, sizeof(char *));
+      writer->metadata_keys[0] = NULL;
+    }
+
+    return 0;
+  }
+
+  /*
+   * MetaData "foo" "bar" ...: Write only specified meta data
+   */
   for (i = 0; writer->metadata_keys && writer->metadata_keys[i]; i++)
     ;
 
