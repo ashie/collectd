@@ -176,10 +176,12 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   diff = now - *timestamp_p;
   *timestamp_p = now;
 
-  if (diff >= m->min && diff <= m->max)
+  if ((m->min == 0 || diff >= m->min) &&
+      (m->max == 0 || diff <= m->max)) {
     return match_status;
-  else
+  } else {
     return nomatch_status;
+  }
 } /* }}} int mi_match */
 
 void module_register(void) {
