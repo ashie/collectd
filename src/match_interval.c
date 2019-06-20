@@ -1,5 +1,5 @@
 /**
- * collectd - src/match_value.c
+ * collectd - src/match_interval.c
  * Copyright (C) 2019 Takuro Ashie <ashie@clear-code.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
