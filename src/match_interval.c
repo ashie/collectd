@@ -35,6 +35,9 @@
 struct mi_match_s;
 typedef struct mi_match_s mi_match_t;
 struct mi_match_s {
+  gauge_t min;
+  gauge_t max;
+  int invert;
 };
 
 /*
@@ -45,6 +48,35 @@ static void mi_free_match(mi_match_t *m) /* {{{ */
   free(m);
 } /* }}} void mi_free_match */
 
+static int mi_config_add_gauge(gauge_t *ret_value, /* {{{ */
+                               oconfig_item_t *ci) {
+
+  if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_NUMBER)) {
+    ERROR("`interval' match: `%s' needs exactly one numeric argument.", ci->key);
+    return -1;
+  }
+
+  *ret_value = ci->values[0].value.number;
+
+  return 0;
+} /* }}} int mi_config_add_gauge */
+
+static int mi_config_add_boolean(int *ret_value, /* {{{ */
+                                 oconfig_item_t *ci) {
+
+  if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_BOOLEAN)) {
+    ERROR("`interval' match: `%s' needs exactly one boolean argument.", ci->key);
+    return -1;
+  }
+
+  if (ci->values[0].value.boolean)
+    *ret_value = 1;
+  else
+    *ret_value = 0;
+
+  return 0;
+} /* }}} int mi_config_add_boolean */
+
 static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
 {
   mi_match_t *m;
@@ -54,6 +86,26 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
   if (m == NULL) {
     ERROR("mi_create: calloc failed.");
     return -ENOMEM;
+  }
+
+  for (int i = 0; i < ci->children_num; i++) {
+    oconfig_item_t *child = ci->children + i;
+
+    if (strcasecmp("Min", child->key) == 0)
+      status = mi_config_add_gauge(&m->min, child);
+    else if (strcasecmp("Max", child->key) == 0)
+      status = mi_config_add_gauge(&m->max, child);
+    else if (strcasecmp("Invert", child->key) == 0)
+      status = mi_config_add_boolean(&m->invert, child);
+    else {
+      ERROR("`interval' match: The `%s' configuration option is not "
+            "understood and will be ignored.",
+            child->key);
+      status = 0;
+    }
+
+    if (status != 0)
+      break;
   }
 
   *user_data = m;
