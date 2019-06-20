@@ -153,7 +153,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
 
   status = FORMAT_VL(identifier, sizeof(identifier), vl);
   if (status != 0)
-    return status;
+    return FC_MATCH_NO_MATCH;
 
   if (c_avl_get(m->timestamps, identifier, (void**)&timestamp)) {
     /* not found */
