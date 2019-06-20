@@ -31,6 +31,8 @@
 #include "utils/common/common.h"
 #include "utils/avltree/avltree.h"
 
+#define log_err(...) ERROR("match_interval: " __VA_ARGS__)
+
 /*
  * private data types
  */
@@ -158,6 +160,10 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   if (c_avl_get(m->timestamps, identifier, (void**)&timestamp_p)) {
     /* not found */
     cdtime_t *data = malloc(sizeof(cdtime_t));
+    if (!data) {
+      log_err("Out of memory.");
+      return FC_MATCH_NO_MATCH;
+    }
     *data = now;
     c_avl_insert(m->timestamps, sstrdup(identifier), data);
     return FC_MATCH_NO_MATCH;
