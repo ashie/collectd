@@ -123,12 +123,24 @@ static int mi_destroy(void **user_data) /* {{{ */
 static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
                     notification_meta_t __attribute__((unused)) * *meta,
                     void **user_data) {
-  int status = FC_MATCH_NO_MATCH;
+  mi_match_t *m;
+  int match_status = FC_MATCH_MATCHES;
+  int nomatch_status = FC_MATCH_NO_MATCH;
 
   if ((user_data == NULL) || (*user_data == NULL))
-    return -1;
+    return nomatch_status;
 
-  return status;
+  m = *user_data;
+  if (m->invert) {
+    match_status = FC_MATCH_NO_MATCH;
+    nomatch_status = FC_MATCH_MATCHES;
+  }
+
+  if (false) {
+    return match_status;
+  }
+
+  return nomatch_status;
 } /* }}} int mi_match */
 
 void module_register(void) {
