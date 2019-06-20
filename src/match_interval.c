@@ -28,6 +28,8 @@
 #include "collectd.h"
 
 #include "filter_chain.h"
+#include "utils/common/common.h"
+#include "utils/avltree/avltree.h"
 
 /*
  * private data types
@@ -38,6 +40,7 @@ struct mi_match_s {
   gauge_t min;
   gauge_t max;
   int invert;
+  c_avl_tree_t *timestamps;
 };
 
 /*
@@ -45,7 +48,14 @@ struct mi_match_s {
  */
 static void mi_free_match(mi_match_t *m) /* {{{ */
 {
-  free(m);
+  char *key = NULL;
+  char *value = NULL;
+  for (;c_avl_pick(m->timestamps, (void *)&key, (void *)&value) == 0;) {
+    sfree(key);
+    /* value is not an actual pointer */
+  }
+  c_avl_destroy(m->timestamps);
+  sfree(m);
 } /* }}} void mi_free_match */
 
 static int mi_config_add_gauge(gauge_t *ret_value, /* {{{ */
@@ -88,6 +98,8 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
     return -ENOMEM;
   }
 
+  m->timestamps = c_avl_create((int (*)(const void *, const void *))strcmp);
+
   for (int i = 0; i < ci->children_num; i++) {
     oconfig_item_t *child = ci->children + i;
 
@@ -126,6 +138,9 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   mi_match_t *m;
   int match_status = FC_MATCH_MATCHES;
   int nomatch_status = FC_MATCH_NO_MATCH;
+  char identifier[768];
+  int status;
+  cdtime_t timestamp, now = cdtime();
 
   if ((user_data == NULL) || (*user_data == NULL))
     return nomatch_status;
@@ -135,6 +150,18 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
     match_status = FC_MATCH_NO_MATCH;
     nomatch_status = FC_MATCH_MATCHES;
   }
+
+  status = FORMAT_VL(identifier, sizeof(identifier), vl);
+  if (status != 0)
+    return status;
+
+  if (c_avl_get(m->timestamps, identifier, (void**)&timestamp)) {
+    /* not found */
+    c_avl_insert(m->timestamps, sstrdup(identifier), (void**)now);
+    return FC_MATCH_NO_MATCH;
+  }
+
+  /* found */
 
   if (false) {
     return match_status;
