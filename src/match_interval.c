@@ -42,6 +42,7 @@ struct mi_match_s {
   cdtime_t min;
   cdtime_t max;
   int invert;
+  bool use_ipaddress;
   c_avl_tree_t *timestamps;
 };
 
@@ -140,7 +141,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   mi_match_t *m;
   int match_status = FC_MATCH_MATCHES;
   int nomatch_status = FC_MATCH_NO_MATCH;
-  char identifier[768];
+  char identifier[768], *ipaddress;
   int status;
   cdtime_t *timestamp_p, now = cdtime(), diff;
 
@@ -156,6 +157,13 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   status = FORMAT_VL(identifier, sizeof(identifier), vl);
   if (status != 0)
     return FC_MATCH_NO_MATCH;
+
+  if (m->use_ipaddress &&
+      !meta_data_get_string(vl->meta, "network:ip_address", &ipaddress)) {
+    int pos = strlen(identifier);
+    snprintf(identifier + pos, sizeof(identifier) - pos, "/%s/", ipaddress);
+    sfree(ipaddress);
+  }
 
   if (c_avl_get(m->timestamps, identifier, (void**)&timestamp_p)) {
     /* not found */
