@@ -37,8 +37,8 @@
 struct mi_match_s;
 typedef struct mi_match_s mi_match_t;
 struct mi_match_s {
-  gauge_t min;
-  gauge_t max;
+  cdtime_t min;
+  cdtime_t max;
   int invert;
   c_avl_tree_t *timestamps;
 };
@@ -52,13 +52,13 @@ static void mi_free_match(mi_match_t *m) /* {{{ */
   char *value = NULL;
   for (;c_avl_pick(m->timestamps, (void *)&key, (void *)&value) == 0;) {
     sfree(key);
-    /* value is not an actual pointer */
+    sfree(value);
   }
   c_avl_destroy(m->timestamps);
   sfree(m);
 } /* }}} void mi_free_match */
 
-static int mi_config_add_gauge(gauge_t *ret_value, /* {{{ */
+static int mi_config_add_gauge(cdtime_t *ret_value, /* {{{ */
                                oconfig_item_t *ci) {
 
   if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_NUMBER)) {
@@ -140,7 +140,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   int nomatch_status = FC_MATCH_NO_MATCH;
   char identifier[768];
   int status;
-  cdtime_t timestamp, now = cdtime();
+  cdtime_t *timestamp_p, now = cdtime(), diff;
 
   if ((user_data == NULL) || (*user_data == NULL))
     return nomatch_status;
@@ -155,19 +155,25 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   if (status != 0)
     return FC_MATCH_NO_MATCH;
 
-  if (c_avl_get(m->timestamps, identifier, (void**)&timestamp)) {
+  if (c_avl_get(m->timestamps, identifier, (void**)&timestamp_p)) {
     /* not found */
-    c_avl_insert(m->timestamps, sstrdup(identifier), (void**)now);
+    cdtime_t *data = malloc(sizeof(cdtime_t));
+    *data = now;
+    c_avl_insert(m->timestamps, sstrdup(identifier), data);
     return FC_MATCH_NO_MATCH;
   }
 
   /* found */
+  if (!timestamp_p)
+    return FC_MATCH_NO_MATCH;
 
-  if (false) {
+  diff = now - *timestamp_p;
+  *timestamp_p = now;
+
+  if (diff >= m->min && diff <= m->max)
     return match_status;
-  }
-
-  return nomatch_status;
+  else
+    return nomatch_status;
 } /* }}} int mi_match */
 
 void module_register(void) {
