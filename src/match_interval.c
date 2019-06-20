@@ -159,8 +159,8 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
 
   if (c_avl_get(m->timestamps, identifier, (void**)&timestamp_p)) {
     /* not found */
-    cdtime_t *data = malloc(sizeof(cdtime_t));
-    if (!data) {
+    cdtime_t *data = calloc(1, sizeof(cdtime_t));
+    if (data == NULL) {
       log_err("Out of memory.");
       return FC_MATCH_NO_MATCH;
     }
