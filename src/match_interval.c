@@ -61,8 +61,8 @@ static void mi_free_match(mi_match_t *m) /* {{{ */
   sfree(m);
 } /* }}} void mi_free_match */
 
-static int mi_config_add_gauge(cdtime_t *ret_value, /* {{{ */
-                               oconfig_item_t *ci) {
+static int mi_config_add_number(cdtime_t *ret_value, /* {{{ */
+                                oconfig_item_t *ci) {
 
   if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_NUMBER)) {
     ERROR("`interval' match: `%s' needs exactly one numeric argument.",
@@ -158,11 +158,11 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
     oconfig_item_t *child = ci->children + i;
 
     if (strcasecmp("Min", child->key) == 0)
-      status = mi_config_add_gauge(&m->min, child);
+      status = mi_config_add_number(&m->min, child);
     else if (strcasecmp("Max", child->key) == 0)
-      status = mi_config_add_gauge(&m->max, child);
+      status = mi_config_add_number(&m->max, child);
     else if (strcasecmp("Expire", child->key) == 0)
-      status = mi_config_add_gauge(&m->max, child);
+      status = mi_config_add_number(&m->max, child);
     else if (strcasecmp("Invert", child->key) == 0)
       status = mi_config_add_boolean(&m->invert, child);
     else {
