@@ -24,12 +24,11 @@
  *   Takuro Ashie <ashie at clear-code.com>
  **/
 
-
 #include "collectd.h"
 
 #include "filter_chain.h"
-#include "utils/common/common.h"
 #include "utils/avltree/avltree.h"
+#include "utils/common/common.h"
 
 #define log_err(...) ERROR("match_interval: " __VA_ARGS__)
 
@@ -54,7 +53,7 @@ static void mi_free_match(mi_match_t *m) /* {{{ */
 {
   char *key = NULL;
   cdtime_t *value = NULL;
-  for (;c_avl_pick(m->timestamps, (void *)&key, (void *)&value) == 0;) {
+  for (; c_avl_pick(m->timestamps, (void *)&key, (void *)&value) == 0;) {
     sfree(key);
     sfree(value);
   }
@@ -66,7 +65,8 @@ static int mi_config_add_gauge(cdtime_t *ret_value, /* {{{ */
                                oconfig_item_t *ci) {
 
   if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_NUMBER)) {
-    ERROR("`interval' match: `%s' needs exactly one numeric argument.", ci->key);
+    ERROR("`interval' match: `%s' needs exactly one numeric argument.",
+          ci->key);
     return -1;
   }
 
@@ -79,7 +79,8 @@ static int mi_config_add_boolean(int *ret_value, /* {{{ */
                                  oconfig_item_t *ci) {
 
   if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_BOOLEAN)) {
-    ERROR("`interval' match: `%s' needs exactly one boolean argument.", ci->key);
+    ERROR("`interval' match: `%s' needs exactly one boolean argument.",
+          ci->key);
     return -1;
   }
 
@@ -91,8 +92,7 @@ static int mi_config_add_boolean(int *ret_value, /* {{{ */
   return 0;
 } /* }}} int mi_config_add_boolean */
 
-static void check_expire(mi_match_t *m, cdtime_t now)
-{
+static void check_expire(mi_match_t *m, cdtime_t now) {
   cdtime_t expire_check_duration;
   cdtime_t one_day_in_sec = 60 * 60 * 24;
   c_avl_iterator_t *itr;
@@ -113,19 +113,19 @@ static void check_expire(mi_match_t *m, cdtime_t now)
   m->next_expire_time = now + expire_check_duration;
 
   keys_array_size = step;
-  keys = realloc(keys, keys_array_size * sizeof(char*));
+  keys = realloc(keys, keys_array_size * sizeof(char *));
   itr = c_avl_get_iterator(m->timestamps);
   if (itr) {
     char *key = NULL;
     cdtime_t *value = NULL;
-    while(c_avl_iterator_next(itr, (void*)&key, (void*)&value) == 0) {
+    while (c_avl_iterator_next(itr, (void *)&key, (void *)&value) == 0) {
       if (!value || *value >= now) {
-	keys_len++;
-	if (keys_len > keys_array_size) {
-	  keys_array_size += step;
-	  keys = realloc(keys, keys_array_size * sizeof(char*));
-	}
-	keys[keys_len - 1] = key;
+        keys_len++;
+        if (keys_len > keys_array_size) {
+          keys_array_size += step;
+          keys = realloc(keys, keys_array_size * sizeof(char *));
+        }
+        keys[keys_len - 1] = key;
       }
     }
     c_avl_iterator_destroy(itr);
@@ -220,7 +220,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
     sfree(ipaddress);
   }
 
-  if (c_avl_get(m->timestamps, identifier, (void**)&timestamp_p)) {
+  if (c_avl_get(m->timestamps, identifier, (void **)&timestamp_p)) {
     /* not found */
     cdtime_t *data = calloc(1, sizeof(cdtime_t));
     if (data == NULL) {
@@ -242,8 +242,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   if (m->expire > 0 && diff >= m->expire)
     return FC_MATCH_NO_MATCH;
 
-  if ((m->min <= 0 || diff >= m->min) &&
-      (m->max <= 0 || diff <= m->max)) {
+  if ((m->min <= 0 || diff >= m->min) && (m->max <= 0 || diff <= m->max)) {
     return match_status;
   } else {
     return nomatch_status;
