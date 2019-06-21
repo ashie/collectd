@@ -182,8 +182,8 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   diff = now - *timestamp_p;
   *timestamp_p = now;
 
-  if ((m->min == 0 || diff >= m->min) &&
-      (m->max == 0 || diff <= m->max)) {
+  if ((m->min <= 0 || diff >= m->min) &&
+      (m->max <= 0 || diff <= m->max)) {
     return match_status;
   } else {
     return nomatch_status;
