@@ -53,7 +53,7 @@ struct mi_match_s {
 static void mi_free_match(mi_match_t *m) /* {{{ */
 {
   char *key = NULL;
-  char *value = NULL;
+  cdtime_t *value = NULL;
   for (;c_avl_pick(m->timestamps, (void *)&key, (void *)&value) == 0;) {
     sfree(key);
     sfree(value);
