@@ -40,12 +40,19 @@
  */
 struct mi_match_s;
 typedef struct mi_match_s mi_match_t;
+enum update_type_e {
+  UPDATE_TIMESTAMP_ALWAYS,
+  UPDATE_TIMESTAMP_MATCH,
+  UPDATE_TIMESTAMP_UNMATCH
+};
+typedef enum update_type_e update_type_t;
 struct mi_match_s {
   cdtime_t min;
   cdtime_t max;
   cdtime_t expire;
   cdtime_t next_expire_time;
   int invert;
+  update_type_t update_type;
   c_avl_tree_t *timestamps;
 };
 
@@ -94,6 +101,32 @@ static int mi_config_add_boolean(int *ret_value, /* {{{ */
 
   return 0;
 } /* }}} int mi_config_add_boolean */
+
+static int mi_config_set_update_type(mi_match_t *m, /* {{{ */
+                                     oconfig_item_t *ci) {
+  char *value;
+
+  if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_STRING)) {
+    log_err("'%s' needs exactly one string argument.",
+            ci->key);
+    return -1;
+  }
+
+  value = ci->values[0].value.string;
+
+  if (value && !strcasecmp(value, "always")) {
+    m->update_type = UPDATE_TIMESTAMP_ALWAYS;
+  } else if (value && !strcasecmp(value, "match")) {
+    m->update_type = UPDATE_TIMESTAMP_MATCH;
+  } else if (value && !strcasecmp(value, "unmatch")) {
+    m->update_type = UPDATE_TIMESTAMP_UNMATCH;
+  } else {
+    log_err("Unknown value '%s' for '%s'",
+            value, ci->key);
+  }
+
+  return 0;
+} /* }}} int mi_config_add_gauge */
 
 static void check_expire(mi_match_t *m, cdtime_t now) {
   cdtime_t expire_check_duration;
@@ -155,6 +188,7 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
     return -ENOMEM;
   }
 
+  m->update_type = UPDATE_TIMESTAMP_ALWAYS;
   m->timestamps = c_avl_create((int (*)(const void *, const void *))strcmp);
 
   for (int i = 0; i < ci->children_num; i++) {
@@ -168,6 +202,8 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
       status = mi_config_add_time(&m->max, child);
     else if (strcasecmp("Invert", child->key) == 0)
       status = mi_config_add_boolean(&m->invert, child);
+    else if (strcasecmp("UpdateTimestamp", child->key) == 0)
+      status = mi_config_set_update_type(m, child);
     else {
       ERROR("`interval' match: The `%s' configuration option is not "
             "understood and will be ignored.",
@@ -236,7 +272,6 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
     return FC_MATCH_NO_MATCH;
 
   diff = now - *timestamp_p;
-  *timestamp_p = now;
 
   if (m->expire > 0 && diff >= m->expire)
     return FC_MATCH_NO_MATCH;
@@ -250,6 +285,16 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
     retval = match_status;
   } else {
     retval = nomatch_status;
+  }
+
+  if (m->update_type == UPDATE_TIMESTAMP_ALWAYS) {
+    *timestamp_p = now;
+  } else if (m->update_type == UPDATE_TIMESTAMP_MATCH) {
+    if (retval == FC_MATCH_MATCHES)
+      *timestamp_p = now;
+  } else if (m->update_type == UPDATE_TIMESTAMP_UNMATCH) {
+    if (retval == FC_MATCH_NO_MATCH)
+      *timestamp_p = now;
   }
 
   log_debug("match status: %s, retval:%d, diff:%" PRIu64 ", min:%" PRIu64
