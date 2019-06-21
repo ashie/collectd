@@ -30,6 +30,9 @@
 #include "utils/avltree/avltree.h"
 #include "utils/common/common.h"
 
+#define log_debug(...) DEBUG("match_interval: " __VA_ARGS__)
+#define log_info(...) INFO("match_interval: " __VA_ARGS__)
+#define log_warn(...) WARN("match_interval: " __VA_ARGS__)
 #define log_err(...) ERROR("match_interval: " __VA_ARGS__)
 
 /*
@@ -194,6 +197,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   mi_match_t *m;
   int match_status = FC_MATCH_MATCHES;
   int nomatch_status = FC_MATCH_NO_MATCH;
+  int retval;
   char identifier[768], *ipaddress;
   int status;
   cdtime_t *timestamp_p, now = cdtime(), diff;
@@ -204,11 +208,6 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   m = *user_data;
 
   check_expire(m, now);
-
-  if (m->invert) {
-    match_status = FC_MATCH_NO_MATCH;
-    nomatch_status = FC_MATCH_MATCHES;
-  }
 
   status = FORMAT_VL(identifier, sizeof(identifier), vl);
   if (status != 0)
@@ -242,11 +241,23 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   if (m->expire > 0 && diff >= m->expire)
     return FC_MATCH_NO_MATCH;
 
-  if ((m->min <= 0 || diff >= m->min) && (m->max <= 0 || diff <= m->max)) {
-    return match_status;
-  } else {
-    return nomatch_status;
+  if (m->invert) {
+    match_status = FC_MATCH_NO_MATCH;
+    nomatch_status = FC_MATCH_MATCHES;
   }
+
+  if ((m->min <= 0 || diff >= m->min) && (m->max <= 0 || diff <= m->max)) {
+    retval = match_status;
+  } else {
+    retval = nomatch_status;
+  }
+
+  log_debug("match status: %s, retval:%d, diff:%" PRIu64 ", min:%" PRIu64
+            ", max:%" PRIu64,
+            identifier, retval, CDTIME_T_TO_TIME_T(diff),
+            CDTIME_T_TO_TIME_T(m->min), CDTIME_T_TO_TIME_T(m->max));
+
+  return retval;
 } /* }}} int mi_match */
 
 void module_register(void) {
