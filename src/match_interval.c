@@ -249,7 +249,8 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   if (status != 0)
     return FC_MATCH_NO_MATCH;
 
-  if (vl->meta && !meta_data_get_string(vl->meta, "network:ip_address", &ipaddress)) {
+  if (vl->meta &&
+      !meta_data_get_string(vl->meta, "network:ip_address", &ipaddress)) {
     int pos = strlen(identifier);
     snprintf(identifier + pos, sizeof(identifier) - pos, "@%s", ipaddress);
     sfree(ipaddress);
