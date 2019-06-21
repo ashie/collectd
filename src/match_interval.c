@@ -156,7 +156,7 @@ static void check_expire(mi_match_t *m, cdtime_t now) {
     char *key = NULL;
     cdtime_t *value = NULL;
     while (c_avl_iterator_next(itr, (void *)&key, (void *)&value) == 0) {
-      if (!value || *value >= now) {
+      if (!value || *value + m->expire >= now) {
         keys_len++;
         if (keys_len > keys_array_size) {
           keys_array_size += step;
