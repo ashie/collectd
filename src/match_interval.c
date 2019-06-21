@@ -126,7 +126,8 @@ static int mi_config_set_update_type(mi_match_t *m, /* {{{ */
   return 0;
 } /* }}} int mi_config_add_gauge */
 
-static void check_expire(mi_match_t *m, cdtime_t now) {
+static void check_expire(mi_match_t *m) {
+  cdtime_t now = cdtime();
   cdtime_t expire_check_duration;
   time_t one_day_in_sec = 60 * 60 * 24;
   cdtime_t one_day = TIME_T_TO_CDTIME_T(one_day_in_sec);
@@ -139,13 +140,6 @@ static void check_expire(mi_match_t *m, cdtime_t now) {
 
   if (now < m->next_expire_time)
     return;
-
-  if (m->expire > one_day * 3)
-    expire_check_duration = one_day;
-  else
-    expire_check_duration = TIME_T_TO_CDTIME_T(one_day_in_sec / 4);
-
-  m->next_expire_time = now + expire_check_duration;
 
   keys_array_size = step;
   keys = realloc(keys, keys_array_size * sizeof(char *));
@@ -174,6 +168,13 @@ static void check_expire(mi_match_t *m, cdtime_t now) {
     sfree(value);
   }
   sfree(keys);
+
+  if (m->expire > one_day * 3)
+    expire_check_duration = one_day;
+  else
+    expire_check_duration = TIME_T_TO_CDTIME_T(one_day_in_sec / 4);
+
+  m->next_expire_time = cdtime() + expire_check_duration;
 }
 
 static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
@@ -242,7 +243,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
 
   m = *user_data;
 
-  check_expire(m, now);
+  check_expire(m);
 
   status = FORMAT_VL(identifier, sizeof(identifier), vl);
   if (status != 0)
