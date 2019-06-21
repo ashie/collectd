@@ -42,7 +42,6 @@ struct mi_match_s {
   cdtime_t min;
   cdtime_t max;
   int invert;
-  bool use_ipaddress;
   c_avl_tree_t *timestamps;
 };
 
@@ -158,8 +157,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   if (status != 0)
     return FC_MATCH_NO_MATCH;
 
-  if (m->use_ipaddress &&
-      !meta_data_get_string(vl->meta, "network:ip_address", &ipaddress)) {
+  if (!meta_data_get_string(vl->meta, "network:ip_address", &ipaddress)) {
     int pos = strlen(identifier);
     snprintf(identifier + pos, sizeof(identifier) - pos, "@%s", ipaddress);
     sfree(ipaddress);
