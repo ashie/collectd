@@ -161,7 +161,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   if (m->use_ipaddress &&
       !meta_data_get_string(vl->meta, "network:ip_address", &ipaddress)) {
     int pos = strlen(identifier);
-    snprintf(identifier + pos, sizeof(identifier) - pos, "/%s/", ipaddress);
+    snprintf(identifier + pos, sizeof(identifier) - pos, "@%s", ipaddress);
     sfree(ipaddress);
   }
 
