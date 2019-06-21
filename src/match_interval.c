@@ -107,8 +107,7 @@ static int mi_config_set_update_type(mi_match_t *m, /* {{{ */
   char *value;
 
   if ((ci->values_num != 1) || (ci->values[0].type != OCONFIG_TYPE_STRING)) {
-    log_err("'%s' needs exactly one string argument.",
-            ci->key);
+    log_err("'%s' needs exactly one string argument.", ci->key);
     return -1;
   }
 
@@ -121,8 +120,7 @@ static int mi_config_set_update_type(mi_match_t *m, /* {{{ */
   } else if (value && !strcasecmp(value, "unmatch")) {
     m->update_type = UPDATE_TIMESTAMP_UNMATCH;
   } else {
-    log_err("Unknown value '%s' for '%s'",
-            value, ci->key);
+    log_err("Unknown value '%s' for '%s'", value, ci->key);
   }
 
   return 0;
