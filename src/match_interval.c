@@ -130,7 +130,7 @@ static int mi_config_set_update_type(mi_match_t *m, /* {{{ */
 
 static void check_expire(mi_match_t *m, cdtime_t now) {
   cdtime_t expire_check_duration;
-  cdtime_t one_day_in_sec = 60 * 60 * 24;
+  cdtime_t one_day = TIME_T_TO_CDTIME_T(60 * 60 * 24);
   c_avl_iterator_t *itr;
   char **keys = NULL;
   uint64_t i, keys_len = 0, keys_array_size = 0, step = 100;
@@ -141,10 +141,10 @@ static void check_expire(mi_match_t *m, cdtime_t now) {
   if (now < m->next_expire_time)
     return;
 
-  if (m->expire > one_day_in_sec * 3)
-    expire_check_duration = one_day_in_sec;
+  if (m->expire > one_day * 3)
+    expire_check_duration = one_day;
   else
-    expire_check_duration = one_day_in_sec / 4;
+    expire_check_duration = one_day / 4;
 
   m->next_expire_time = now + expire_check_duration;
 
