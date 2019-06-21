@@ -41,6 +41,8 @@ typedef struct mi_match_s mi_match_t;
 struct mi_match_s {
   cdtime_t min;
   cdtime_t max;
+  cdtime_t expire;
+  cdtime_t next_expire_time;
   int invert;
   c_avl_tree_t *timestamps;
 };
@@ -89,6 +91,56 @@ static int mi_config_add_boolean(int *ret_value, /* {{{ */
   return 0;
 } /* }}} int mi_config_add_boolean */
 
+static void check_expire(mi_match_t *m, cdtime_t now)
+{
+  cdtime_t expire_check_duration;
+  cdtime_t one_day_in_sec = 60 * 60 * 24;
+  c_avl_iterator_t *itr;
+  char **keys = NULL;
+  uint64_t i, keys_len = 0, keys_array_size = 0, step = 100;
+
+  if (m->expire <= 0)
+    return;
+
+  if (now < m->next_expire_time)
+    return;
+
+  if (m->expire > one_day_in_sec * 3)
+    expire_check_duration = one_day_in_sec;
+  else
+    expire_check_duration = one_day_in_sec / 4;
+
+  m->next_expire_time = now + expire_check_duration;
+
+  keys_array_size = step;
+  keys = realloc(keys, keys_array_size * sizeof(char*));
+  itr = c_avl_get_iterator(m->timestamps);
+  if (itr) {
+    char *key = NULL;
+    cdtime_t *value = NULL;
+    while(c_avl_iterator_next(itr, (void*)&key, (void*)&value) == 0) {
+      if (!value || *value >= now) {
+	keys_len++;
+	if (keys_len > keys_array_size) {
+	  keys_array_size += step;
+	  keys = realloc(keys, keys_array_size * sizeof(char*));
+	}
+	keys[keys_len - 1] = key;
+      }
+    }
+    c_avl_iterator_destroy(itr);
+  }
+
+  for (i = 0; i < keys_len; i++) {
+    char *key = NULL;
+    cdtime_t *value = NULL;
+    c_avl_remove(m->timestamps, keys[i], (void *)&key, (void *)&value);
+    sfree(key);
+    sfree(value);
+  }
+  sfree(keys);
+}
+
 static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
 {
   mi_match_t *m;
@@ -108,6 +160,8 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
     if (strcasecmp("Min", child->key) == 0)
       status = mi_config_add_gauge(&m->min, child);
     else if (strcasecmp("Max", child->key) == 0)
+      status = mi_config_add_gauge(&m->max, child);
+    else if (strcasecmp("Expire", child->key) == 0)
       status = mi_config_add_gauge(&m->max, child);
     else if (strcasecmp("Invert", child->key) == 0)
       status = mi_config_add_boolean(&m->invert, child);
@@ -148,6 +202,9 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
     return nomatch_status;
 
   m = *user_data;
+
+  check_expire(m, now);
+
   if (m->invert) {
     match_status = FC_MATCH_NO_MATCH;
     nomatch_status = FC_MATCH_MATCHES;
@@ -181,6 +238,9 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
 
   diff = now - *timestamp_p;
   *timestamp_p = now;
+
+  if (m->expire > 0 && diff >= m->expire)
+    return FC_MATCH_NO_MATCH;
 
   if ((m->min <= 0 || diff >= m->min) &&
       (m->max <= 0 || diff <= m->max)) {
