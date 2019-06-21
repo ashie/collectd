@@ -239,7 +239,7 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   cdtime_t *timestamp_p, now = cdtime(), diff;
 
   if ((user_data == NULL) || (*user_data == NULL))
-    return nomatch_status;
+    return FC_MATCH_NO_MATCH;
 
   m = *user_data;
 
