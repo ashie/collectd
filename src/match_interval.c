@@ -50,10 +50,12 @@ struct mi_match_s {
   cdtime_t min;
   cdtime_t max;
   cdtime_t expire;
-  cdtime_t next_expire_time;
   int invert;
   update_type_t update_type;
+
+  cdtime_t next_expire_time;
   c_avl_tree_t *timestamps;
+  pthread_rwlock_t lock;
 };
 
 /*
@@ -135,11 +137,17 @@ static void check_expire(mi_match_t *m) {
   char **keys = NULL;
   uint64_t i, keys_len = 0, keys_array_size = 0, step = 100;
 
-  if (m->expire <= 0)
-    return;
+  pthread_rwlock_rdlock(&m->lock);
 
-  if (now < m->next_expire_time)
+  if (m->expire <= 0) {
+    pthread_rwlock_unlock(&m->lock);
     return;
+  }
+
+  if (now < m->next_expire_time) {
+    pthread_rwlock_unlock(&m->lock);
+    return;
+  }
 
   keys_array_size = step;
   keys = realloc(keys, keys_array_size * sizeof(char *));
@@ -160,6 +168,10 @@ static void check_expire(mi_match_t *m) {
     c_avl_iterator_destroy(itr);
   }
 
+  pthread_rwlock_unlock(&m->lock);
+
+  pthread_rwlock_wrlock(&m->lock);
+
   for (i = 0; i < keys_len; i++) {
     char *key = NULL;
     cdtime_t *value = NULL;
@@ -175,6 +187,8 @@ static void check_expire(mi_match_t *m) {
     expire_check_duration = TIME_T_TO_CDTIME_T(one_day_in_sec / 4);
 
   m->next_expire_time = cdtime() + expire_check_duration;
+
+  pthread_rwlock_unlock(&m->lock);
 }
 
 static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
@@ -190,6 +204,11 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
 
   m->update_type = UPDATE_TIMESTAMP_ALWAYS;
   m->timestamps = c_avl_create((int (*)(const void *, const void *))strcmp);
+  status = pthread_rwlock_init(&m->lock, NULL);
+  if (status != 0) {
+    log_err("Failed to initialize rwlock, err %u", status);
+    return status;
+  }
 
   for (int i = 0; i < ci->children_num; i++) {
     oconfig_item_t *child = ci->children + i;
@@ -236,7 +255,8 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   int retval;
   char identifier[768], *ipaddress;
   int status;
-  cdtime_t *timestamp_p, now = cdtime(), diff;
+  cdtime_t *timestamp_p, timestamp, now = cdtime(), diff;
+  bool update_timestamp = false;
 
   if ((user_data == NULL) || (*user_data == NULL))
     return FC_MATCH_NO_MATCH;
@@ -256,23 +276,29 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
     sfree(ipaddress);
   }
 
-  if (c_avl_get(m->timestamps, identifier, (void **)&timestamp_p)) {
+  pthread_rwlock_rdlock(&m->lock);
+  status = c_avl_get(m->timestamps, identifier, (void **)&timestamp_p);
+  if (status == 0)
+    timestamp = *timestamp_p;
+  pthread_rwlock_unlock(&m->lock);
+
+  if (status != 0) {
     /* not found */
+    pthread_rwlock_wrlock(&m->lock);
     cdtime_t *data = calloc(1, sizeof(cdtime_t));
     if (data == NULL) {
       log_err("Out of memory.");
+      pthread_rwlock_unlock(&m->lock);
       return FC_MATCH_NO_MATCH;
     }
     *data = now;
     c_avl_insert(m->timestamps, sstrdup(identifier), data);
+    pthread_rwlock_unlock(&m->lock);
     return FC_MATCH_NO_MATCH;
   }
 
   /* found */
-  if (!timestamp_p)
-    return FC_MATCH_NO_MATCH;
-
-  diff = now - *timestamp_p;
+  diff = now - timestamp;
 
   if (m->expire > 0 && diff >= m->expire)
     return FC_MATCH_NO_MATCH;
@@ -289,13 +315,19 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   }
 
   if (m->update_type == UPDATE_TIMESTAMP_ALWAYS) {
-    *timestamp_p = now;
+    update_timestamp = true;
   } else if (m->update_type == UPDATE_TIMESTAMP_MATCH) {
     if (retval == FC_MATCH_MATCHES)
-      *timestamp_p = now;
+      update_timestamp = true;
   } else if (m->update_type == UPDATE_TIMESTAMP_UNMATCH) {
     if (retval == FC_MATCH_NO_MATCH)
-      *timestamp_p = now;
+      update_timestamp = true;
+  }
+
+  if (update_timestamp) {
+    pthread_rwlock_wrlock(&m->lock);
+    *timestamp_p = now;
+    pthread_rwlock_unlock(&m->lock);
   }
 
   log_debug("match status: %s, retval:%d, diff:%" PRIu64 ", min:%" PRIu64
