@@ -149,6 +149,9 @@ static void check_expire(mi_match_t *m) {
     return;
   }
 
+  pthread_rwlock_unlock(&m->lock);
+  pthread_rwlock_wrlock(&m->lock);
+
   keys_array_size = step;
   keys = realloc(keys, keys_array_size * sizeof(char *));
   itr = c_avl_get_iterator(m->timestamps);
@@ -168,13 +171,10 @@ static void check_expire(mi_match_t *m) {
     c_avl_iterator_destroy(itr);
   }
 
-  pthread_rwlock_unlock(&m->lock);
-
-  pthread_rwlock_wrlock(&m->lock);
-
   for (i = 0; i < keys_len; i++) {
     char *key = NULL;
     cdtime_t *value = NULL;
+    log_debug("Expire: %s", keys[i]);
     c_avl_remove(m->timestamps, keys[i], (void *)&key, (void *)&value);
     sfree(key);
     sfree(value);
@@ -218,7 +218,7 @@ static int mi_create(const oconfig_item_t *ci, void **user_data) /* {{{ */
     else if (strcasecmp("Max", child->key) == 0)
       status = mi_config_add_time(&m->max, child);
     else if (strcasecmp("Expire", child->key) == 0)
-      status = mi_config_add_time(&m->max, child);
+      status = mi_config_add_time(&m->expire, child);
     else if (strcasecmp("Invert", child->key) == 0)
       status = mi_config_add_boolean(&m->invert, child);
     else if (strcasecmp("UpdateTimestamp", child->key) == 0)
