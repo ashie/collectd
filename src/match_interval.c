@@ -331,9 +331,10 @@ static int mi_match(const data_set_t *ds, const value_list_t *vl, /* {{{ */
   }
 
   log_debug("match status: %s, retval:%d, diff:%" PRIu64 ", min:%" PRIu64
-            ", max:%" PRIu64,
+            ", max:%" PRIu64 ", invert: %d",
             identifier, retval, CDTIME_T_TO_TIME_T(diff),
-            CDTIME_T_TO_TIME_T(m->min), CDTIME_T_TO_TIME_T(m->max));
+            CDTIME_T_TO_TIME_T(m->min), CDTIME_T_TO_TIME_T(m->max),
+	    m->invert);
 
   return retval;
 } /* }}} int mi_match */
